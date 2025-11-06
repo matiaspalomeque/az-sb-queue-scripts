@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { ServiceBusClient } from "@azure/service-bus";
 
 const connectionString = process.env.SERVICE_BUS_CONNECTION_STRING;

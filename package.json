@@ -4,7 +4,8 @@
     "empty-queue-node": "node --env-file=.env ./emptyQueue.js"
   },
   "dependencies": {
-    "@azure/service-bus": "^7.9.5"
+    "@azure/service-bus": "^7.9.5",
+    "dotenv": "^17.2.3"
   },
   "type": "module"
 }

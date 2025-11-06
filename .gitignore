@@ -137,3 +137,27 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# IDE and editor directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# System files (Windows)
+Thumbs.db
+Desktop.ini
