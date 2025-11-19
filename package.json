@@ -1,7 +1,8 @@
 {
   "scripts": {
     "move-to-queue-node": "node --env-file=.env ./moveToQueue.js",
-    "empty-queue-node": "node --env-file=.env ./emptyQueue.js"
+    "empty-queue-node": "node --env-file=.env ./emptyQueue.js",
+    "search-in-queue": "node --env-file=.env ./searchInQueue.js"
   },
   "dependencies": {
     "@azure/service-bus": "^7.9.5",
