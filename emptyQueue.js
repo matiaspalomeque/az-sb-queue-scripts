@@ -6,27 +6,31 @@ const sourceQueue = process.env.SOURCE_QUEUE;
 const receiveMessagesCount = Number(process.env.RECEIVE_MESSAGES_COUNT);
 const maxWaitTimeInMs = Number(process.env.MAX_WAIT_TIME_IN_MS);
 
-const client   = new ServiceBusClient(connectionString);
+const client = new ServiceBusClient(connectionString);
 const receiver = client.createReceiver(sourceQueue);
 
 async function empty() {
   let total = 0;
-  console.log("Limpiando la cola… (Ctrl-C para detener)");
+  console.log("🚀 Clearing queue... (Ctrl-C to stop)");
 
   while (true) {
     const msgs = await receiver.receiveMessages(receiveMessagesCount, { maxWaitTimeInMs: maxWaitTimeInMs });
     if (!msgs.length) {
-      console.log("La cola está vacía");
+      console.log("\n📭 The queue is empty");
       break;
     }
 
     await Promise.all(msgs.map(m => receiver.completeMessage(m)));
     total += msgs.length;
-    process.stdout.write(`\r${total} mensajes eliminados…`);
+    process.stdout.write(`\r🗑️  ${total} messages deleted...`);
   }
 
   await receiver.close();
   await client.close();
+  console.log(`\n✅ Finished. Total deleted: ${total}`);
 }
 
-empty().catch(console.error);
+empty().catch((err) => {
+  console.error("❌ Error:", err);
+  process.exit(1);
+});

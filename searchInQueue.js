@@ -41,7 +41,7 @@ async function searchQueue(isDlq = false) {
 
   const queueLabel = isDlq ? `DLQ of queue "${queueName}"` : `queue "${queueName}"`;
 
-  console.log(`\nSearching ${queueLabel}`);
+  console.log(`\n🔍 Searching ${queueLabel}`);
   console.log(`Looking for: "${searchString}" (caseSensitive = ${caseSensitive})\n`);
 
   try {
@@ -51,7 +51,7 @@ async function searchQueue(isDlq = false) {
       });
 
       if (messages.length === 0) {
-        console.log(`No more messages found in ${isDlq ? "DLQ" : "queue"}.\n`);
+        console.log(`🤷 No more messages found in ${isDlq ? "DLQ" : "queue"}.\n`);
         break;
       }
 
@@ -73,7 +73,7 @@ async function searchQueue(isDlq = false) {
 
         if (contains) {
           matchesFound++;
-          console.log(`MATCH #${matchesFound}`);
+          console.log(`🎯 MATCH #${matchesFound}`);
           console.log(`   MessageId            : ${msg.messageId}`);
           console.log(`   SequenceNumber       : ${msg.sequenceNumber}`);
           console.log(`   Enqueued             : ${msg.enqueuedTimeUtc}`);
@@ -96,25 +96,25 @@ async function searchQueue(isDlq = false) {
     await receiver.close();
   }
 
-  console.log(`=== SUMMARY for ${queueLabel} ===`);
+  console.log(`=== 📊 SUMMARY for ${queueLabel} ===`);
   console.log(`Total messages checked : ${totalChecked}`);
   console.log(`Matches found          : ${matchesFound}`);
   if (matchesFound === 0) {
-    console.log(`No messages in the ${isDlq ? "DLQ" : "queue"} contain "${searchString}"`);
+    console.log(`🤷 No messages in the ${isDlq ? "DLQ" : "queue"} contain "${searchString}"`);
   }
 
   return { totalChecked, matchesFound };
 }
 
 async function main() {
-  console.log("Starting search...");
+  console.log("🚀 Starting search...");
 
   const mainResult = await searchQueue(false);
 
   const dlqResult = await searchQueue(true);
 
   console.log("\n\n==========================================");
-  console.log("           OVERALL SUMMARY");
+  console.log("           📊 OVERALL SUMMARY");
   console.log("==========================================");
   console.log(`Main Queue: ${mainResult.matchesFound} matches found in ${mainResult.totalChecked} messages.`);
   console.log(`DLQ       : ${dlqResult.matchesFound} matches found in ${dlqResult.totalChecked} messages.`);

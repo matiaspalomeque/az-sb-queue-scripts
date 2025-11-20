@@ -16,7 +16,7 @@ const sender = sbClient.createSender(destQueue);
 
 async function moveMessages(receiver, queueType) {
   let totalMoved = 0;
-  
+
   while (true) {
     const messages = await receiver.receiveMessages(receiveMessagesCount, { maxWaitTimeInMs: maxWaitTimeInMs });
     if (messages.length === 0) break;
@@ -40,31 +40,35 @@ async function moveMessages(receiver, queueType) {
     for (const msg of messages) {
       await receiver.completeMessage(msg);
     }
-    
+
     totalMoved += messages.length;
   }
-  
-  console.log(`Movidos ${totalMoved} mensajes desde ${queueType}`);
+
+  console.log(`🚚 Moved ${totalMoved} messages from ${queueType}`);
   await receiver.close();
 }
 
 async function moveAllMessages() {
   try {
-    console.log('Procesando cola normal...');
+    console.log('🚀 Starting move process...');
+    console.log('🔄 Processing normal queue...');
     const normalReceiver = sbClient.createReceiver(sourceQueue);
     await moveMessages(normalReceiver, 'normal queue');
 
-    console.log('Procesando cola de dead-letters ...');
+    console.log('🔄 Processing DLQ...');
     const dlqReceiver = sbClient.createReceiver(sourceQueue, { subQueueType: "deadLetter" });
     await moveMessages(dlqReceiver, 'dead letter queue');
 
     await sender.close();
     await sbClient.close();
-    console.log('Todos los mensajes han sido movidos con éxito');
+    console.log('✅ All messages moved successfully');
   } catch (error) {
     console.error('Error:', error);
     throw error;
   }
 }
 
-moveAllMessages().catch(console.error);
+moveAllMessages().catch((err) => {
+  console.error("❌ Error:", err);
+  process.exit(1);
+});
