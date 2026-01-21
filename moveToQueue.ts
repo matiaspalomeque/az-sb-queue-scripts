@@ -1,5 +1,4 @@
-import 'dotenv/config';
-import { ServiceBusClient } from "@azure/service-bus";
+import { ServiceBusClient, ServiceBusReceiver } from "@azure/service-bus";
 
 const connectionString = process.env.SERVICE_BUS_CONNECTION_STRING;
 const sourceQueue = process.env.SOURCE_QUEUE;
@@ -7,14 +6,14 @@ const destQueue = process.env.DEST_QUEUE;
 const receiveMessagesCount = Number(process.env.RECEIVE_MESSAGES_COUNT);
 const maxWaitTimeInMs = Number(process.env.MAX_WAIT_TIME_IN_MS);
 
-if (!connectionString) {
-  throw new Error("SERVICE_BUS_CONNECTION_STRING environment variable is required");
-}
+if (!connectionString) throw new Error("SERVICE_BUS_CONNECTION_STRING is required");
+if (!sourceQueue) throw new Error("SOURCE_QUEUE is required");
+if (!destQueue) throw new Error("DEST_QUEUE is required");
 
 const sbClient = new ServiceBusClient(connectionString);
 const sender = sbClient.createSender(destQueue);
 
-async function moveMessages(receiver, queueType) {
+async function moveMessages(receiver: ServiceBusReceiver, queueType: string) {
   let totalMoved = 0;
 
   while (true) {
@@ -30,7 +29,6 @@ async function moveMessages(receiver, queueType) {
       messageId: m.messageId,
       to: m.to,
       replyTo: m.replyTo,
-      label: m.label,
       sessionId: m.sessionId,
       timeToLive: m.timeToLive,
     }));
@@ -52,11 +50,11 @@ async function moveAllMessages() {
   try {
     console.log('🚀 Starting move process...');
     console.log('🔄 Processing normal queue...');
-    const normalReceiver = sbClient.createReceiver(sourceQueue);
+    const normalReceiver = sbClient.createReceiver(sourceQueue!);
     await moveMessages(normalReceiver, 'normal queue');
 
     console.log('🔄 Processing DLQ...');
-    const dlqReceiver = sbClient.createReceiver(sourceQueue, { subQueueType: "deadLetter" });
+    const dlqReceiver = sbClient.createReceiver(sourceQueue!, { subQueueType: "deadLetter" });
     await moveMessages(dlqReceiver, 'dead letter queue');
 
     await sender.close();

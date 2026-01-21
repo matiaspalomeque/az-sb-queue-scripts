@@ -2,8 +2,8 @@ import { ServiceBusClient } from "@azure/service-bus";
 import Long from "long";
 
 if (process.argv.length < 3) {
-  console.error("Usage: node searchInQueue.js <search-string> [queue-name]");
-  console.error("Example: node searchInQueue.js \"Something12345\" my-queue");
+  console.error("Usage: bun run searchInQueue.ts <search-string> [queue-name]");
+  console.error("Example: bun run searchInQueue.ts \"Something12345\" my-queue");
   process.exit(1);
 }
 
@@ -27,13 +27,13 @@ const sbClient = new ServiceBusClient(connectionString);
 
 async function searchQueue(isDlq = false) {
   const receiverOptions = isDlq ? {
-    subQueueType: "deadLetter",
-    receiveMode: "peekLock"
+    subQueueType: "deadLetter" as const,
+    receiveMode: "peekLock" as const
   } : {
-    receiveMode: "peekLock"
+    receiveMode: "peekLock" as const
   };
 
-  const receiver = sbClient.createReceiver(queueName, receiverOptions);
+  const receiver = sbClient.createReceiver(queueName!, receiverOptions);
 
   let totalChecked = 0;
   let matchesFound = 0;
@@ -84,7 +84,7 @@ async function searchQueue(isDlq = false) {
           console.log(`   Body preview         : ${bodyStr.substring(0, 300)}${bodyStr.length > 300 ? "..." : ""}\n`);
         }
 
-        fromSequenceNumber = msg.sequenceNumber.add(1);
+        fromSequenceNumber = msg.sequenceNumber!.add(1);
       }
 
       console.log(`Batch processed: ${messages.length} messages → Total checked: ${totalChecked} | Matches so far: ${matchesFound}`);

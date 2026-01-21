@@ -1,12 +1,17 @@
 {
   "scripts": {
-    "move-to-queue-node": "node --env-file=.env ./moveToQueue.js",
-    "empty-queue-node": "node --env-file=.env ./emptyQueue.js",
-    "search-in-queue": "node --env-file=.env ./searchInQueue.js"
+    "move-to-queue-node": "bun run ./moveToQueue.ts",
+    "empty-queue-node": "bun run ./emptyQueue.ts",
+    "search-in-queue": "bun run ./searchInQueue.ts"
   },
   "dependencies": {
     "@azure/service-bus": "^7.9.5",
     "dotenv": "^17.2.3"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "^1.3.2",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  }
 }
