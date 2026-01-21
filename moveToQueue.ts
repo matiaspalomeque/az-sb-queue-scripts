@@ -40,6 +40,7 @@ async function moveMessages(receiver: ServiceBusReceiver, queueType: string) {
     }
 
     totalMoved += messages.length;
+    console.log(`Moved ${messages.length} messages so far... (Total in batch: ${totalMoved})`);
   }
 
   console.log(`🚚 Moved ${totalMoved} messages from ${queueType}`);
@@ -47,15 +48,27 @@ async function moveMessages(receiver: ServiceBusReceiver, queueType: string) {
 }
 
 async function moveAllMessages() {
+  const mode = process.argv[2]?.toLowerCase() || 'both';
+
+  if (!['normal', 'dlq', 'both'].includes(mode)) {
+    console.error('❌ Invalid mode. Use "normal", "dlq", or "both" (default).');
+    process.exit(1);
+  }
+
   try {
     console.log('🚀 Starting move process...');
-    console.log('🔄 Processing normal queue...');
-    const normalReceiver = sbClient.createReceiver(sourceQueue!);
-    await moveMessages(normalReceiver, 'normal queue');
+    
+    if (mode === 'normal' || mode === 'both') {
+      console.log('🔄 Processing normal queue...');
+      const normalReceiver = sbClient.createReceiver(sourceQueue!);
+      await moveMessages(normalReceiver, 'normal queue');
+    }
 
-    console.log('🔄 Processing DLQ...');
-    const dlqReceiver = sbClient.createReceiver(sourceQueue!, { subQueueType: "deadLetter" });
-    await moveMessages(dlqReceiver, 'dead letter queue');
+    if (mode === 'dlq' || mode === 'both') {
+      console.log('🔄 Processing DLQ...');
+      const dlqReceiver = sbClient.createReceiver(sourceQueue!, { subQueueType: "deadLetter" });
+      await moveMessages(dlqReceiver, 'dead letter queue');
+    }
 
     await sender.close();
     await sbClient.close();
