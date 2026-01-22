@@ -1,19 +1,14 @@
 import { ServiceBusClient, ServiceBusReceiver, ServiceBusSender } from "@azure/service-bus";
 
 const connectionString = process.env.SERVICE_BUS_CONNECTION_STRING;
-const sourceQueue = process.env.SOURCE_QUEUE;
-const destQueue = process.env.DEST_QUEUE;
 const receiveMessagesCount = Number(process.env.RECEIVE_MESSAGES_COUNT) || 100;
 const maxWaitTimeInMs = Number(process.env.MAX_WAIT_TIME_IN_MS) || 5000;
 
 if (!connectionString) throw new Error("SERVICE_BUS_CONNECTION_STRING is required");
-if (!sourceQueue) throw new Error("SOURCE_QUEUE is required");
-if (!destQueue) throw new Error("DEST_QUEUE is required");
 
 const sbClient = new ServiceBusClient(connectionString);
-const sender = sbClient.createSender(destQueue);
 
-async function moveMessages(receiver: ServiceBusReceiver, queueType: string) {
+async function moveMessages(receiver: ServiceBusReceiver, sender: ServiceBusSender, queueType: string) {
   let totalMoved = 0;
   const startTime = Date.now();
 
@@ -67,22 +62,31 @@ async function moveMessages(receiver: ServiceBusReceiver, queueType: string) {
 }
 
 async function moveAllMessages() {
-  const mode = process.argv[2]?.toLowerCase() || 'both';
+  const sourceQueue = process.argv[2];
+  const destQueue = process.argv[3];
+  const mode = process.argv[4]?.toLowerCase() || 'both';
+
+  if (!sourceQueue || !destQueue) {
+    console.error('❌ Usage: bun run moveToQueue.ts <source-queue> <dest-queue> [normal|dlq|both]');
+    process.exit(1);
+  }
 
   if (!['normal', 'dlq', 'both'].includes(mode)) {
     console.error('❌ Invalid mode. Use "normal", "dlq", or "both" (default).');
     process.exit(1);
   }
 
+  const sender = sbClient.createSender(destQueue);
+
   try {
     if (mode === 'normal' || mode === 'both') {
-      const normalReceiver = sbClient.createReceiver(sourceQueue!);
-      await moveMessages(normalReceiver, 'normal queue');
+      const normalReceiver = sbClient.createReceiver(sourceQueue);
+      await moveMessages(normalReceiver, sender, 'normal queue');
     }
 
     if (mode === 'dlq' || mode === 'both') {
-      const dlqReceiver = sbClient.createReceiver(sourceQueue!, { subQueueType: "deadLetter" });
-      await moveMessages(dlqReceiver, 'dead letter queue');
+      const dlqReceiver = sbClient.createReceiver(sourceQueue, { subQueueType: "deadLetter" });
+      await moveMessages(dlqReceiver, sender, 'dead letter queue');
     }
 
   } catch (error) {

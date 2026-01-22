@@ -1,48 +1,22 @@
-import { ServiceBusClient } from "@azure/service-bus";
+import { ServiceBusClient, ServiceBusReceiver } from "@azure/service-bus";
 import Long from "long";
-
-if (process.argv.length < 3) {
-  console.error("Usage: bun run searchInQueue.ts <search-string> [queue-name]");
-  console.error("Example: bun run searchInQueue.ts \"Something12345\" my-queue");
-  process.exit(1);
-}
-
-const searchString = process.argv[2];
-const queueName = process.argv[3] || process.env.SOURCE_QUEUE;
 
 const connectionString = process.env.SERVICE_BUS_CONNECTION_STRING;
 const batchSize = Number(process.env.BATCH_SIZE) || 100;
 const caseSensitive = process.env.CASE_SENSITIVE === "true";
 
-if (!connectionString) {
-  console.error("ERROR: SERVICE_BUS_CONNECTION_STRING environment variable is required");
-  process.exit(1);
-}
-if (!queueName) {
-  console.error("ERROR: Queue name must be provided via argument or QUEUE_NAME env var");
-  process.exit(1);
-}
+if (!connectionString) throw new Error("SERVICE_BUS_CONNECTION_STRING is required");
 
 const sbClient = new ServiceBusClient(connectionString);
 
-async function searchQueue(isDlq = false) {
-  const receiverOptions = isDlq ? {
-    subQueueType: "deadLetter" as const,
-    receiveMode: "peekLock" as const
-  } : {
-    receiveMode: "peekLock" as const
-  };
-
-  const receiver = sbClient.createReceiver(queueName!, receiverOptions);
-
+async function searchMessages(receiver: ServiceBusReceiver, queueType: string, searchString: string) {
   let totalChecked = 0;
   let matchesFound = 0;
   let fromSequenceNumber = Long.ZERO;
+  const startTime = Date.now();
 
-  const queueLabel = isDlq ? `DLQ of queue "${queueName}"` : `queue "${queueName}"`;
-
-  console.log(`\n🔍 Searching ${queueLabel}`);
-  console.log(`Looking for: "${searchString}" (caseSensitive = ${caseSensitive})\n`);
+  console.log(`\n🔍 Searching ${queueType}...`);
+  console.log(`   Looking for: "${searchString}" (caseSensitive=${caseSensitive})`);
 
   try {
     while (true) {
@@ -51,7 +25,7 @@ async function searchQueue(isDlq = false) {
       });
 
       if (messages.length === 0) {
-        console.log(`🤷 No more messages found in ${isDlq ? "DLQ" : "queue"}.\n`);
+        console.log(`\n✨ No more messages found in ${queueType}.`);
         break;
       }
 
@@ -73,56 +47,71 @@ async function searchQueue(isDlq = false) {
 
         if (contains) {
           matchesFound++;
-          console.log(`🎯 MATCH #${matchesFound}`);
-          console.log(`   MessageId            : ${msg.messageId}`);
-          console.log(`   SequenceNumber       : ${msg.sequenceNumber}`);
-          console.log(`   Enqueued             : ${msg.enqueuedTimeUtc}`);
-          if (isDlq) {
-            console.log(`   DeadLetter Reason    : ${msg.deadLetterReason || "N/A"}`);
-            console.log(`   DeadLetter Error     : ${msg.deadLetterErrorDescription || "N/A"}`);
+          console.log(`\n🎯 MATCH # ${matchesFound}`);
+          console.log(`   MessageId: ${msg.messageId}`);
+          console.log(`   SequenceNumber: ${msg.sequenceNumber}`);
+          console.log(`   Enqueued: ${msg.enqueuedTimeUtc}`);
+          if (msg.deadLetterReason) {
+             console.log(`   DeadLetter Reason: ${msg.deadLetterReason}`);
+             console.log(`   DeadLetter Error: ${msg.deadLetterErrorDescription}`);
           }
-          console.log(`   Body preview         : ${bodyStr.substring(0, 300)}${bodyStr.length > 300 ? "..." : ""}\n`);
+          console.log(`   Body Preview: ${bodyStr.substring(0, 300)}${bodyStr.length > 300 ? "..." : ""}`);
         }
 
         fromSequenceNumber = msg.sequenceNumber!.add(1);
       }
-
-      console.log(`Batch processed: ${messages.length} messages → Total checked: ${totalChecked} | Matches so far: ${matchesFound}`);
+      
+      process.stdout.write(`\r👀 Checked: ${totalChecked} | Matches: ${matchesFound}`);
     }
   } catch (err) {
-    console.error("Error during processing:", err);
+    console.error(`\n❌ Error searching ${queueType}:`, err);
     throw err;
   } finally {
+    const totalDuration = (Date.now() - startTime) / 1000;
+    console.log(`\n✅ Finished ${queueType}. Checked: ${totalChecked}, Matches: ${matchesFound} in ${totalDuration.toFixed(1)}s`);
     await receiver.close();
   }
+}
 
-  console.log(`=== 📊 SUMMARY for ${queueLabel} ===`);
-  console.log(`Total messages checked : ${totalChecked}`);
-  console.log(`Matches found          : ${matchesFound}`);
-  if (matchesFound === 0) {
-    console.log(`🤷 No messages in the ${isDlq ? "DLQ" : "queue"} contain "${searchString}"`);
+async function searchAllMessages() {
+  const queue = process.argv[2];
+  const searchString = process.argv[3];
+  const mode = process.argv[4]?.toLowerCase() || 'both';
+
+  if (!queue || !searchString) {
+    console.error('❌ Usage: bun run searchInQueue.ts <queue> <search-string> [normal|dlq|both]');
+    process.exit(1);
   }
 
-  return { totalChecked, matchesFound };
-}
+  if (!['normal', 'dlq', 'both'].includes(mode)) {
+    console.error('❌ Invalid mode. Use "normal", "dlq", or "both" (default).');
+    process.exit(1);
+  }
 
-async function main() {
-  console.log("🚀 Starting search...");
+  try {
+    if (mode === 'normal' || mode === 'both') {
+      const normalReceiver = sbClient.createReceiver(queue);
+      await searchMessages(normalReceiver, 'normal queue', searchString);
+    }
 
-  const mainResult = await searchQueue(false);
+    if (mode === 'dlq' || mode === 'both') {
+      const dlqReceiver = sbClient.createReceiver(queue, { subQueueType: "deadLetter" });
+      await searchMessages(dlqReceiver, 'dead letter queue', searchString);
+    }
 
-  const dlqResult = await searchQueue(true);
-
-  console.log("\n\n==========================================");
-  console.log("           📊 OVERALL SUMMARY");
-  console.log("==========================================");
-  console.log(`Main Queue: ${mainResult.matchesFound} matches found in ${mainResult.totalChecked} messages.`);
-  console.log(`DLQ       : ${dlqResult.matchesFound} matches found in ${dlqResult.totalChecked} messages.`);
-  console.log("==========================================");
-}
-
-main()
-  .catch(console.error)
-  .finally(async () => {
+  } catch (error) {
+    console.error('\n💥 Fatal Error:', error);
+    process.exit(1);
+  } finally {
+    console.log('\n😴 Closing connections...');
     await sbClient.close();
-  });
+    console.log('👋 Done.');
+  }
+}
+
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err);
+  process.exit(1);
+});
+
+searchAllMessages();
