@@ -1,4 +1,5 @@
 import { ServiceBusClient, ServiceBusReceiver } from "@azure/service-bus";
+import Long from "long";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -10,26 +11,53 @@ const sbClient = new ServiceBusClient(connectionString);
 
 async function peekMessages(receiver: ServiceBusReceiver, count: number, sourceLabel: string): Promise<any[]> {
   console.log(`\n👀 Peeking ${count} messages from ${sourceLabel}...`);
-  try {
-    const messages = await receiver.peekMessages(count);
-    console.log(`✨ Found ${messages.length} messages in ${sourceLabel}.`);
 
-    return messages.map(m => ({
-      messageId: m.messageId,
-      body: m.body,
-      subject: m.subject,
-      contentType: m.contentType,
-      correlationId: m.correlationId,
-      partitionKey: m.partitionKey,
-      traceParent: m.applicationProperties?.['Diagnostic-Id'],
-      applicationProperties: m.applicationProperties,
-      enqueuedTimeUtc: m.enqueuedTimeUtc,
-      expiresAtUtc: m.expiresAtUtc,
-      _source: sourceLabel
-    }));
+  const allMessages: any[] = [];
+  const batchSize = 250;  // Max allowed by Azure Service Bus
+  let fromSequenceNumber: Long | undefined = undefined;
+
+  try {
+    while (allMessages.length < count) {
+      const remainingCount = count - allMessages.length;
+      const fetchCount = Math.min(remainingCount, batchSize);
+
+      const messages = await receiver.peekMessages(fetchCount, {
+        fromSequenceNumber: fromSequenceNumber
+      });
+
+      if (messages.length === 0) break;  // No more messages
+
+      for (const msg of messages) {
+        allMessages.push({
+          messageId: msg.messageId,
+          body: msg.body,
+          subject: msg.subject,
+          contentType: msg.contentType,
+          correlationId: msg.correlationId,
+          partitionKey: msg.partitionKey,
+          traceParent: msg.applicationProperties?.['Diagnostic-Id'],
+          applicationProperties: msg.applicationProperties,
+          enqueuedTimeUtc: msg.enqueuedTimeUtc,
+          expiresAtUtc: msg.expiresAtUtc,
+          _source: sourceLabel
+        });
+        fromSequenceNumber = msg.sequenceNumber!.add(1);
+      }
+
+      if (count > batchSize) {
+        process.stdout.write(`\r   Retrieved: ${allMessages.length} messages...`);
+      }
+    }
+
+    if (count > batchSize) {
+      console.log('');
+    }
+    console.log(`✨ Found ${allMessages.length} messages in ${sourceLabel}.`);
+
+    return allMessages;
   } catch (err) {
     console.error(`❌ Error peeking messages from ${sourceLabel}:`, err);
-    return [];
+    return allMessages;
   }
 }
 
