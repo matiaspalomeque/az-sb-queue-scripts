@@ -3,7 +3,7 @@
     "move-to-queue-node": "bun run ./moveToQueue.ts",
     "empty-queue-node": "bun run ./emptyQueue.ts",
     "search-in-queue": "bun run ./searchInQueue.ts",
-    "peak-and-download": "bun run ./peakAndDownloadQueue.ts"
+    "peek-and-download": "bun run ./peekAndDownload.ts"
   },
   "dependencies": {
     "@azure/service-bus": "^7.9.5",
